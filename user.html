@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Internal Web | Zero Trust Access</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        .container {
+            width: 800px;
+            background: rgba(30, 41, 59, 0.9);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 0 40px rgba(0,0,0,0.6);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #38bdf8;
+            font-size: 32px;
+        }
+
+        .header p {
+            color: #94a3b8;
+        }
+
+        .user-box {
+            background: #020617;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            position: relative;
+        }
+
+        .user-box h2 {
+            color: #22c55e;
+        }
+
+        .user-box p {
+            margin-top: 5px;
+            color: #cbd5f5;
+        }
+
+        .status {
+            background: #022c22;
+            padding: 15px;
+            border-radius: 10px;
+            color: #4ade80;
+            margin-bottom: 20px;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .card {
+            background: #1e293b;
+            padding: 15px;
+            border-radius: 10px;
+            transition: 0.3s;
+        }
+
+        .card:hover {
+            transform: scale(1.05);
+            background: #334155;
+        }
+
+        .card h3 {
+            color: #38bdf8;
+        }
+
+        .card p {
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .big-name {
+            font-size: 42px;
+            font-weight: bold;
+            color: #38bdf8;
+            text-shadow: 0 0 10px #38bdf8;
+        }
+
+        .role-text {
+            margin-top: 10px;
+            font-size: 18px;
+            color: #cbd5f5;
+        }
+
+        /* Nút đăng xuất style mới */
+        .logout-btn {
+            margin-top: 15px;
+            padding: 8px 20px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            font-size: 14px;
+        }
+
+        .logout-btn:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>🔐 Internal Web Dashboard</h1>
+        <p>Protected by Cloudflare </p>
+    </div>
+
+    <div class="user-box center">
+        <h1 class="big-name">👋 Xin chào <span id="userName">Loading...</span></h1>
+        <p class="role-text">Phân quyền: <strong id="userRole" style="color: #4ade80; text-transform: uppercase;">...</strong></p>
+        <button class="logout-btn" onclick="logout()">🚪 Đăng xuất</button>
+    </div>
+
+    <div class="status">
+        ✔ Bạn đã được xác thực qua Cloudflare (MFA Enabled)
+    </div>
+
+    <div class="features">
+        <div class="card">
+            <h3>🔐 Security</h3>
+            <p>Xác thực bằng Zero Trust + MFA</p>
+        </div>
+        <div class="card">
+            <h3>👥 Access Control</h3>
+            <p>Phân quyền chặt chẽ giữa Admin và User</p>
+        </div>
+        <div class="card">
+            <h3>📊 Logging</h3>
+            <p>Ghi log truy cập người dùng theo thời gian thực</p>
+        </div>
+        <div class="card">
+            <h3>🌐 Tunnel</h3>
+            <p>Ẩn server nội bộ bằng Cloudflare Tunnel</p>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // 1. KIỂM TRA BẢO MẬT: Bắt buộc phải có thẻ bài (Token)
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        window.location.href = '/login';
+    }
+
+    // 2. GỌI API LẤY DỮ LIỆU USER TỪ SERVER PYTHON
+    async function fetchUserData() {
+        try {
+            const response = await fetch('http://127.0.0.1:8000/user/data', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.status === 401 || response.status === 403) {
+                alert("Phiên làm việc không hợp lệ hoặc đã hết hạn!");
+                logout();
+                return;
+            }
+
+            const data = await response.json();
+            
+            // Giải mã Token để lấy tên đăng nhập
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            
+            // Bơm dữ liệu vào màn hình
+            document.getElementById('userName').innerText = payload.sub;
+            document.getElementById('userRole').innerText = data.role;
+
+        } catch (error) {
+            console.error("Lỗi kết nối Backend:", error);
+        }
+    }
+
+    // Chạy ngay khi tải trang
+    fetchUserData();
+
+    // 3. XỬ LÝ ĐĂNG XUẤT
+    function logout() {
+        localStorage.removeItem('access_token');
+        window.location.href = '/login';
+    }
+</script>
+
+</body>
+</html>

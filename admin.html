@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel | Zero Trust Access Gateway</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary-color: #f38020;
+            --bg-dark: #1e1e1e;
+            --card-bg: #2d2d2d;
+            --text-color: #ffffff;
+            --success-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --warning-color: #f1c40f;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .dashboard-container { max-width: 1200px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 2px solid var(--card-bg); padding-bottom: 1rem; }
+        .header h1 { color: var(--primary-color); margin: 0; font-size: 1.5rem; }
+        
+        .status-card { background-color: var(--card-bg); padding: 1.5rem; border-radius: 12px; border-left: 5px solid var(--success-color); margin-bottom: 2rem; display: flex; align-items: center; justify-content: space-between; }
+        .status-info i { font-size: 2rem; color: var(--primary-color); margin-right: 15px; }
+        
+        .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .admin-card { background-color: var(--card-bg); border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border-top: 4px solid var(--primary-color); }
+        .admin-card h3 { margin-top: 0; margin-bottom: 1.5rem; font-size: 1.1rem; display: flex; align-items: center; gap: 10px; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th { text-align: left; color: #888; padding: 10px; border-bottom: 1px solid #444; }
+        td { padding: 12px 10px; border-bottom: 1px solid #333; }
+        
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
+        .bg-online { background-color: rgba(46, 204, 113, 0.2); color: var(--success-color); }
+        .bg-offline { background-color: rgba(136, 136, 136, 0.2); color: #888; }
+        
+        .btn-action { padding: 6px 10px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.8rem; margin-right: 5px; transition: 0.3s; }
+        .btn-logout { background-color: var(--warning-color); color: #000; }
+        .btn-delete { background-color: var(--danger-color); color: #fff; }
+        .btn-action:hover { opacity: 0.8; }
+        
+        .log-container { max-height: 400px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--primary-color) #1e1e1e; }
+        .outcome-200 { color: var(--success-color); font-weight: bold; }
+        .outcome-404 { color: var(--danger-color); font-weight: bold; }
+        
+        .filter-box { margin-bottom: 15px; display: flex; gap: 10px; }
+        .filter-box input { background: #1e1e1e; border: 1px solid #444; color: white; padding: 5px 10px; border-radius: 4px; width: 100%; }
+        
+        @media (max-width: 900px) { .grid-layout { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<div class="dashboard-container">
+    <div class="header">
+        <h1><i class="fa-solid fa-shield-halved"></i> Admin Control Center</h1>
+        <div>
+            <span style="font-size: 0.8rem; color: #888;">Logged in as: <strong id="adminName">admin</strong></span>
+            <button onclick="logout()" style="background: none; border: 1px solid #444; color: #ccc; padding: 5px 10px; margin-left: 10px; border-radius: 4px; cursor: pointer;">Đăng xuất</button>
+        </div>
+    </div>
+
+    <div class="status-card">
+        <div class="status-info d-flex align-items-center" style="display: flex; align-items: center;">
+            <i class="fa-solid fa-cloud-bolt"></i>
+            <div>
+                <div style="font-weight: bold; font-size: 1.1rem;">Cloudflare Tunnel Status</div>
+                <div style="font-size: 0.85rem; color: #aaa;">Kết nối bảo mật qua Port 7844</div>
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <span class="badge bg-online" style="font-size: 1rem;"><i class="fa-solid fa-circle-check"></i> CONNECTED</span>
+            <div style="font-size: 0.7rem; color: #666; margin-top: 5px;">IP: 172.67.x.x | Edge: HAN</div>
+        </div>
+    </div>
+
+    <div class="grid-layout">
+        <div class="admin-card">
+            <h3><i class="fa-solid fa-users"></i> Quản lý người dùng</h3>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tên người dùng</th>
+                            <th>Vai trò</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userTable">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="admin-card">
+            <h3><i class="fa-solid fa-list-check"></i> Audit Logs</h3>
+            <div class="filter-box">
+                <input type="text" id="logSearch" placeholder="Lọc theo tên hoặc sự kiện..." onkeyup="filterLogs()">
+            </div>
+            <div class="log-container">
+                <table id="auditTable">
+                    <thead>
+                        <tr>
+                            <th>Thời gian</th>
+                            <th>Người thực hiện</th>
+                            <th>Sự kiện</th>
+                            <th>Outcome</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="font-size: 0.75rem; color: #888;">System Log</td>
+                            <td>Hệ thống</td>
+                            <td>Khởi tạo Database SQLite</td>
+                            <td><span class="outcome-200">200 OK</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. KIỂM TRA ĐĂNG NHẬP
+    const token = localStorage.getItem('access_token');
+
+if (!token) {
+    window.location.href = '/login';
+} else {
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+
+        // Nếu không phải admin thì đá ra luôn
+        if (payload.role !== 'admin') {
+            alert("Bạn không có quyền truy cập trang admin!");
+            localStorage.removeItem('access_token');
+            window.location.href = '/login';
+        } else {
+            document.getElementById('adminName').innerText = payload.sub;
+        }
+    } catch (error) {
+        localStorage.removeItem('access_token');
+        window.location.href = '/login';
+    }
+}
+    // 2. TẢI DỮ LIỆU USER VÀ HIỂN THỊ MENU CHỌN QUYỀN
+    async function loadUsers() {
+        try {
+            const response = await fetch('http://127.0.0.1:8000/admin/users', {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.status === 401 || response.status === 403) {
+                alert("Lỗi bảo mật: Bạn không có quyền truy cập!");
+                logout(); return;
+            }
+
+            const data = await response.json();
+            const tbody = document.getElementById('userTable');
+            tbody.innerHTML = ''; 
+
+            data.users.forEach(user => {
+                const roleColor = user.role === 'admin' ? 'var(--primary-color)' : '#ccc';
+                
+                // NẾU LÀ ROOT ADMIN THÌ KHÔNG CHO ĐỔI QUYỀN
+                let roleHtml = '';
+                if (user.username === 'admin') {
+                    roleHtml = `<strong style="color: var(--primary-color);">ROOT ADMIN</strong>`;
+                } else {
+                    // TẠO MENU DROPDOWN ĐỂ ĐỔI QUYỀN
+                    roleHtml = `
+                        <select onchange="changeRole('${user.username}', this.value)" 
+                                style="background: #1e1e1e; color: ${roleColor}; border: 1px solid #444; padding: 4px; border-radius: 4px;">
+                            <option value="user" ${user.role === 'user' ? 'selected' : ''}>USER</option>
+                            <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>ADMIN</option>
+                        </select>
+                    `;
+                }
+
+                const actionButtons = user.username !== 'admin' 
+                    ? `<button class="btn-action btn-logout" onclick="confirmForceLogout('${user.username}')">Ngắt kết nối</button>
+                       <button class="btn-action btn-delete" onclick="confirmDelete('${user.username}')">Xóa</button>`
+                    : `<span style="color: #666; font-size: 0.8rem;">(Không thể xóa)</span>`;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${user.username}</td>
+                    <td>${roleHtml}</td>
+                    <td><span class="badge bg-online">Verified</span></td>
+                    <td>${actionButtons}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (error) { console.error("Lỗi mạng:", error); }
+    }
+
+    // HÀM MỚI: GỌI API ĐỂ ĐỔI QUYỀN
+    async function changeRole(username, newRole) {
+        try {
+            const response = await fetch(`http://127.0.0.1:8000/admin/users/${username}/role?new_role=${newRole}`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                Swal.fire({
+                    title: 'Thành công!',
+                    text: `Đã cấp quyền ${newRole.toUpperCase()} cho tài khoản ${username}`,
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                loadLogs(); // Load lại bảng Audit Log để thấy lịch sử đổi quyền ngay lập tức
+                loadUsers(); // Load lại màu sắc của dropdown
+            } else {
+                const data = await response.json();
+                Swal.fire('Lỗi', data.detail, 'error');
+                loadUsers(); // Đổi thất bại thì reset lại dropdown
+            }
+        } catch (error) {
+            Swal.fire('Lỗi mạng', 'Không thể kết nối đến Server.', 'error');
+        }
+    }
+
+// 4. TẢI DỮ LIỆU AUDIT LOGS
+    async function loadLogs() {
+        try {
+            const response = await fetch('http://127.0.0.1:8000/admin/logs', {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const tbody = document.querySelector('#auditTable tbody');
+                tbody.innerHTML = ''; // Xóa sạch log "giả" ban đầu
+
+                data.logs.forEach(log => {
+                    // Đổi màu chữ xanh đỏ tùy vào trạng thái thành công hay thất bại
+                    const outcomeClass = log.outcome.includes('200') ? 'outcome-200' : 'outcome-404';
+                    
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-size: 0.75rem; color: #888;">${log.time}</td>
+                        <td style="font-weight: bold;">${log.user}</td>
+                        <td>${log.action}</td>
+                        <td><span class="${outcomeClass}">${log.outcome}</span></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        } catch (error) {
+            console.error("Lỗi tải Audit Logs:", error);
+        }
+    }
+    async function verifyAdminAccess() {
+    try {
+        const response = await fetch('http://127.0.0.1:8000/admin/data', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.status === 401 || response.status === 403) {
+            alert("Bạn không được phép truy cập admin hoặc đang ngoài giờ làm việc!");
+            localStorage.removeItem('access_token');
+            window.location.href = '/login';
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        alert("Không thể xác minh quyền admin!");
+        localStorage.removeItem('access_token');
+        window.location.href = '/login';
+        return false;
+    }
+}
+
+    // Gọi hàm này chạy cùng lúc với loadUsers khi vừa mở trang
+    (async () =>{
+        const ok=await verifyAdminAccess()
+        if(ok){
+            loadLogs()
+            loadUsers()
+        }
+    })();
+
+    // 3. API XÓA TÀI KHOẢN (ĐOẠN CODE NÀY SẼ BẮN LỆNH DELETE)
+    function confirmDelete(username) {
+        Swal.fire({
+            title: 'Xóa tài khoản?',
+            text: `Hành động này sẽ xóa vĩnh viễn user "${username}" khỏi database!`,
+            icon: 'error',
+            showCancelButton: true,
+            confirmButtonColor: '#e74c3c',
+            cancelButtonColor: '#444',
+            confirmButtonText: 'Xóa ngay',
+            cancelButtonText: 'Hủy'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    // Đây chính là lúc Frontend bắn lệnh DELETE cho Backend Python
+                    const response = await fetch(`http://127.0.0.1:8000/admin/users/${username}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        Swal.fire('Đã xóa!', `Tài khoản ${username} đã bị loại bỏ.`, 'success');
+                        loadUsers(); // Cập nhật lại giao diện
+                    } else {
+                        const data = await response.json();
+                        Swal.fire('Từ chối', data.detail, 'error');
+                    }
+                } catch (error) {
+                    Swal.fire('Lỗi mạng', 'Không thể gửi yêu cầu xóa đến Server.', 'error');
+                }
+            }
+        });
+    }
+
+    function confirmForceLogout(username) {
+        Swal.fire({
+            title: 'Ngắt kết nối?',
+            text: `Tính năng ngắt kết nối trực tiếp đang được phát triển...`,
+            icon: 'info',
+            confirmButtonColor: '#f38020'
+        });
+    }
+
+    function filterLogs() {
+        let input = document.getElementById("logSearch");
+        let filter = input.value.toLowerCase();
+        let table = document.getElementById("auditTable");
+        let tr = table.getElementsByTagName("tr");
+        for (let i = 1; i < tr.length; i++) {
+            let rowText = tr[i].innerText.toLowerCase();
+            tr[i].style.display = rowText.includes(filter) ? "" : "none";
+        }
+    }
+</script>
+
+</body>
+</html>

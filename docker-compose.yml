@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  # 1. Ứng dụng Web của bạn
+  web-app:
+    build: .
+    container_name: zero-trust-web
+    # Bạn có thể giữ port này để test ở máy local, 
+    # Nếu muốn bảo mật tuyệt đối, thêm dấu # trước 2 dòng dưới để khóa cổng local
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./users.db:/app/users.db
+    restart: unless-stopped
+
+  # 2. Đầu kéo Cloudflare Tunnel
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token eyJhIjoiNWY4NWVmMTMwODE4YWM0YmU1ZWZiNjhlMDEyZmUzNTIiLCJ0IjoiMzNiMTdjYmMtOTAwZi00NzBiLTgzNWItOWEwN2RkMDM1OGNlIiwicyI6IlltVm1Oek14WVdRdE9UVTVOaTAwTUdZeExXSTBPRFF0TkRFM05qa3lOamM0TmpSbSJ9
+    # cloudflared và web-app sẽ tự động nhìn thấy nhau qua mạng nội bộ của Docker
+    depends_on:
+      - web-app

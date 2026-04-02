@@ -1,0 +1,10 @@
+# Bỏ qua Database
+users.db
+
+# Bỏ qua các file cache của Python
+__pycache__/
+*.pyc
+
+# Bỏ qua môi trường ảo (nếu có)
+venv/
+env/
