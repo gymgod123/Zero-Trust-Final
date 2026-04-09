@@ -4,6 +4,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import FileResponse # Thư viện để trả về file HTML
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import sqlite3 
 import os
 import tempfile
@@ -24,7 +25,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 EMERGENCY_ADMIN=["admin"]
 def is_working_time():
-    return False
+    now = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))
+    hour = now.hour
+    return 5 <= hour < 17
 # --- 2. KHỞI TẠO DATABASE SQLITE ---
 # --- 2. KHỞI TẠO DATABASE SQLITE ---
 DB_DIR = tempfile.gettempdir()
@@ -61,10 +64,11 @@ init_db()
 def write_audit_log(username: str, action: str, outcome: str):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    # Lấy giờ hệ thống hiện tại
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute("INSERT INTO logs (timestamp, username, action, outcome) VALUES (?, ?, ?, ?)", 
-                   (now, username, action, outcome))
+    now = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute(
+        "INSERT INTO logs (timestamp, username, action, outcome) VALUES (?, ?, ?, ?)",
+        (now, username, action, outcome)
+    )
     conn.commit()
     conn.close()
 
@@ -99,14 +103,23 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         return {"username": user_row[0], "role": user_row[1]}
     except JWTError:
         raise credentials_exception
-def enforce_admin_time_access(current_user:dict):
-    if current_user['role']!='admin':
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Truy cập bị từ chối")
+def enforce_admin_time_access(current_user: dict):
+    if current_user['role'] != 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Truy cập bị từ chối"
+        )
+
     if not is_working_time() and current_user["username"] not in EMERGENCY_ADMIN:
-        write_audit_log(current_user['username'],"Truy cập ngoài giờ làm việc","403 access denied")
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Admin truy cập ngoài giờ làm việc")
-    if not is_working_time() and current_user["username"] in EMERGENCY_ADMIN:
-        write_audit_log(current_user['username'],"Emergency login ngoài giờ làm việc",'200 access')
+        write_audit_log(
+            current_user['username'],
+            "Truy cập ngoài giờ làm việc",
+            "403 access denied"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin truy cập ngoài giờ làm việc"
+        )
 
 # --- 4. API ENDPOINTS CHÍNH (Xử lý dữ liệu ngầm - POST) ---
 
@@ -134,21 +147,30 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     cursor.execute("SELECT password, role FROM users WHERE username = ?", (form_data.username,))
     user_row = cursor.fetchone()
     conn.close()
-    
+
     if not user_row or form_data.password != user_row[0]:
-        # Ghi log: Đăng nhập sai
         write_audit_log(form_data.username, "Cố gắng đăng nhập (Sai mật khẩu/Tài khoản)", "401 Failed")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sai thông tin")
-    role=user_row[1]
-    if role=='admin' and not is_working_time():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sai thông tin"
+        )
+
+    role = user_row[1]
+
+    if role == 'admin' and not is_working_time():
         if form_data.username not in EMERGENCY_ADMIN:
-            write_audit_log(form_data.username,'Đăng nhập admin ngoài giờ làm việc','403 Denied')
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail='Admin không đc đăng nhập ngoài giờ làm việc')
+            write_audit_log(form_data.username, "Đăng nhập admin ngoài giờ làm việc", "403 Denied")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin không đc đăng nhập ngoài giờ làm việc"
+            )
         else:
-            write_audit_log(form_data.username,"Emergency login ngoài giờ làm việc",'200 Emergency Access')
-    write_audit_log(form_data.username,"Đăng nhập thành công","200 Access")
-    access_token=create_access_token(data={"sub":form_data.username,"role":role})
-    return {"access_token":access_token,"token_type":"bearer"}
+            write_audit_log(form_data.username, "Emergency login ngoài giờ làm việc", "200 Access")
+
+    write_audit_log(form_data.username, "Đăng nhập thành công", "200 Access")
+
+    access_token = create_access_token(data={"sub": form_data.username, "role": role})
+    return {"access_token": access_token, "token_type": "bearer"}
 # --- API LẤY NHẬT KÝ CHO ADMIN ---
 @app.get("/admin/logs", tags=["Admin Zone"])
 async def get_audit_logs(current_user: dict = Depends(get_current_user)):
